@@ -1,0 +1,88 @@
+---
+title: "Text Generation with Claude via PHP AI SDK"
+sidebarTitle: "Text Generation"
+description: "Generate text responses from Claude models using system instructions, multi-turn message history, and configurable generation parameters."
+---
+
+`Generate::text()` sends a request to `POST /messages` on the Anthropic Messages API and returns a `TextModelResponse` containing the generated text, token usage, finish reason, and the raw API payload. The provider handles authentication, serialization, and response parsing automatically.
+
+## Basic Usage
+
+Attach a model, optional instructions, and a prompt, then call `->run()` to receive the complete response.
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Generate;
+
+$result = Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->instructions('Write short, clear answers.')
+    ->prompt('Explain closures in PHP.')
+    ->run();
+
+echo $result->text;
+```
+
+## System Instructions
+
+There are two ways to supply system-level instructions and both are merged into the Anthropic top-level `system` field before the request is sent.
+
+**Via `.instructions()`** — a convenience string attached directly to the generation request:
+
+```php
+$result = Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->instructions('You are a concise technical assistant.')
+    ->prompt('What is a PHP trait?')
+    ->run();
+```
+
+**Via `Message::system()` in multi-turn history** — system entries placed inside the messages array are extracted and appended to the same `system` field:
+
+```php
+use AiSdk\Message;
+
+$result = Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->instructions('Be terse')
+    ->messages([
+        Message::system('Use metric units'),
+        Message::user('What is the weather in Lahore?'),
+    ])
+    ->run();
+```
+
+In the example above the Anthropic request receives `system: "Be terse\n\nUse metric units"`. The `Message::system()` entry is removed from the `messages` array before it is sent — Anthropic does not accept system-role messages inside the `messages` field.
+
+## Response Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `$result->text` | `string` | The generated text content. |
+| `$result->usage->inputTokens` | `int` | Number of tokens in the prompt and system instructions. |
+| `$result->usage->outputTokens` | `int` | Number of tokens in the generated response. |
+| `$result->finishReason` | `FinishReason` | One of `Stop`, `Length`, `ToolCalls`, or `Unknown`. |
+| `$result->rawResponse` | `array` | The full, unmodified response payload returned by the Anthropic API. |
+
+The `finishReason` values map from Anthropic stop reasons as follows:
+
+| Anthropic `stop_reason` | SDK `FinishReason` |
+|---|---|
+| `end_turn`, `stop_sequence` | `Stop` |
+| `max_tokens` | `Length` |
+| `tool_use` | `ToolCalls` |
+| _(any other value)_ | `Unknown` |
+
+## Setting a Default Model
+
+To avoid specifying a model on every call, register a default model once at application bootstrap using `Generate::model()`. All subsequent `Generate::text()` calls will use it automatically.
+
+```php
+Generate::model(Anthropic::model('claude-sonnet-4'));
+
+$result = Generate::text('Your prompt here')->run();
+```
+
+<Tip>
+  Set a default model once at application bootstrap using `Generate::model()` to avoid passing the model on every call. This is especially useful in frameworks where you configure services in a service provider or bootstrap file.
+</Tip>

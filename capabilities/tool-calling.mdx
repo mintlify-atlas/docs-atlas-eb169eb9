@@ -1,0 +1,81 @@
+---
+title: "Tool Calling with Claude in the PHP AI SDK"
+sidebarTitle: "Tool Calling"
+description: "Define tools with input schemas and let Claude invoke them during generation. The Anthropic provider converts PHP Tool objects to Anthropic's tool-use format automatically."
+---
+
+Claude tool calling lets you define callable functions that Claude can choose to invoke during generation. You define a `Tool` with a name, description, and input schema, attach it to a generation request, and Claude responds with a `tool_use` content block when it decides to call the tool. The SDK maps that block to a `ToolCallPart` in the response, which your application can inspect and execute.
+
+## Basic Tool
+
+Define a tool with `Tool::make()`, declare its input schema, and register a handler with `->run()`. Attach the tool to a generation request using `->tool()`.
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Generate;
+use AiSdk\Schema;
+use AiSdk\Tool;
+
+$weather = Tool::make('weather', 'Get current weather')
+    ->input(Schema::string(name: 'city')->required())
+    ->run(fn (string $city): string => "Sunny in {$city}");
+
+$result = Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->prompt('What is the weather in Lahore?')
+    ->tool($weather)
+    ->run();
+```
+
+When Claude decides to call the tool, `$result->finishReason` is `FinishReason::ToolCalls` and `$result->parts` contains a `ToolCallPart` with the tool name and decoded argument array.
+
+## Wire Format
+
+`AnthropicToolConverter::convert()` maps each `Tool` object to the shape required by the Anthropic API:
+
+```json
+{
+  "name": "weather",
+  "description": "Get current weather",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "city": { "type": "string" }
+    },
+    "required": ["city"]
+  }
+}
+```
+
+Tool results are returned to Anthropic in the next generation turn as `tool_result` blocks nested inside a `user` message:
+
+```json
+{
+  "role": "user",
+  "content": [
+    {
+      "type": "tool_result",
+      "tool_use_id": "<id from tool_use block>",
+      "content": "Sunny in Lahore"
+    }
+  ]
+}
+```
+
+## Multiple Tools
+
+Pass multiple tools at once using `->tools()` with a comma-separated list or an array:
+
+```php
+$result = Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->prompt('What is the weather in Lahore and what time is it?')
+    ->tools($weatherTool, $timeTool)
+    ->run();
+```
+
+Tools are sent to the API in the order they are registered. Claude may call one or more of them depending on the prompt.
+
+<Note>
+  Tool result messages use `Message::ROLE_TOOL` internally. The SDK converts them to Anthropic's `user` / `tool_result` message format automatically — you do not need to construct the wire format yourself.
+</Note>

@@ -1,0 +1,59 @@
+---
+title: "Stream Claude Responses Chunk by Chunk in PHP"
+sidebarTitle: "Streaming"
+description: "Stream Claude model responses using server-sent events. Iterate over text chunks in real time and access the final result after the stream completes."
+---
+
+Streaming uses Anthropic's server-sent events (SSE) protocol to deliver the response incrementally as it is generated. The SDK yields `TextDeltaPart`, `ReasoningDeltaPart`, and `ToolCallDeltaPart` chunks as they arrive, so your application can begin rendering output without waiting for the full response to complete.
+
+## Basic Streaming
+
+Call `.stream()` instead of `.run()` to receive a stream handle. Iterate over `$stream->chunks()` to receive each text delta as a string, then call `$stream->run()` to obtain the fully-assembled `TextModelResponse` once the stream is exhausted.
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Generate;
+
+$stream = Generate::text('Tell me a story.')
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->stream();
+
+foreach ($stream->chunks() as $chunk) {
+    echo $chunk;
+}
+
+$result = $stream->run();
+```
+
+`$stream->chunks()` is a generator that yields plain text delta strings — the same content you would read from `$result->text` if you called `.run()` directly, but delivered piece by piece. After iterating all chunks, `$stream->run()` returns the complete `TextModelResponse` with final usage counts and finish reason.
+
+## Stream Events
+
+The Anthropic SSE protocol sends a sequence of typed events. The SDK's stream parser handles the following event types internally:
+
+<Steps>
+  <Step title="message_start">
+    Emitted once at the beginning of the stream. Contains the message ID and initial input token count. The SDK emits a `ProviderMetadataPart` carrying the Anthropic message ID.
+  </Step>
+  <Step title="content_block_start">
+    Signals the start of a new content block. When the block type is `tool_use`, the parser emits a `ToolCallStartPart` with the tool call's `index`, `id`, and `name`.
+  </Step>
+  <Step title="content_block_delta">
+    Carries incremental content. The SDK maps the three delta subtypes as follows:
+    - `text_delta` → yields a `TextDeltaPart` with the text fragment
+    - `thinking_delta` → yields a `ReasoningDeltaPart` with the reasoning fragment
+    - `input_json_delta` → yields a `ToolCallDeltaPart` with a partial JSON string
+  </Step>
+  <Step title="message_delta">
+    Emitted once near the end of the stream. Contains the `stop_reason` and the final output token count. The SDK uses this to set the `FinishReason` on the assembled response.
+  </Step>
+  <Step title="error">
+    Emitted when Anthropic reports a stream-level error. The SDK wraps the error message in a `RuntimeException` and yields an `ErrorPart`.
+  </Step>
+</Steps>
+
+After all events have been consumed, the parser emits a final `FinishPart` carrying the resolved `FinishReason` and a `Usage` object with the complete input and output token counts.
+
+<Note>
+  The `stream: true` flag is set automatically when you call `.stream()`. Do not pass it manually via `.providerOptions()` — doing so would conflict with the SDK's own stream handling.
+</Note>

@@ -1,0 +1,88 @@
+---
+title: "Register Custom Claude Models Without a Package Release"
+sidebarTitle: "Custom Models"
+description: "Register new or private Claude model IDs with explicit capability declarations so you can use them before the package catalog is updated."
+---
+
+When Anthropic releases a new model or you are using a private deployment, you do not need to wait for an updated package release. You can register the model at runtime using `Anthropic::registerModel()`. Registered models bypass the built-in `resources/models.json` catalog entirely, letting you declare exactly which capabilities the model supports with no side effects on other model handles.
+
+## Terse Registration
+
+The quickest way to register a model is to pass the model ID as a string along with a `capabilities` array. This is the recommended form for the vast majority of use cases.
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Capability;
+
+Anthropic::registerModel('claude-5-sonnet', capabilities: [
+    Capability::TextGeneration,
+    Capability::Streaming,
+    Capability::ToolCalling,
+    Capability::StructuredOutput,
+    Capability::Reasoning,
+    Capability::TextInput,
+    Capability::ImageInput,
+]);
+
+$result = Generate::text('Hello')
+    ->model(Anthropic::model('claude-5-sonnet'))
+    ->run();
+```
+
+## ModelDefinition Registration
+
+When you need to pass a structured object — for example to share a definition across multiple providers or to attach metadata — pass a `ModelDefinition` instance instead.
+
+```php
+use AiSdk\ModelDefinition;
+use AiSdk\Capability;
+
+Anthropic::registerModel(new ModelDefinition(
+    id: 'claude-custom',
+    capabilities: [Capability::TextGeneration, Capability::Streaming, Capability::TextInput],
+));
+```
+
+Use `ModelDefinition` when you need a reusable, structured representation of the model. Use the terse string form for quick, one-off registration directly in application bootstrap code.
+
+## Assuming Capabilities
+
+If you want to declare extra capabilities on a single model handle without touching the global registry, call `.assume()` on the handle. This is useful in request-scoped or test contexts where a global `registerModel()` call would bleed into unrelated code.
+
+```php
+$model = Anthropic::model('my-new-model')->assume([
+    Capability::ToolCalling,
+    Capability::StructuredOutput,
+]);
+```
+
+Assumed capabilities are merged with whatever the catalog or registry already knows about the model. The `source` field on any assumed `CapabilitySupport` object is set to `'user-assumed'`. Note that `TextGeneration` is still granted via the `unknown-model-fallback` for unregistered IDs, so you do not need to include it in the `assume()` list.
+
+## Allow All Unknown Capabilities
+
+If you want to bypass capability gating entirely for a model handle — for example during local development against a private endpoint — call `.allowUnknownCapabilities()`. Every capability check will return `true` for that handle.
+
+```php
+$model = Anthropic::model('my-new-model')->allowUnknownCapabilities();
+```
+
+The `source` field on every `CapabilitySupport` returned by this handle is `'user-allowed-unknown-capabilities'`. This setting is scoped to the individual handle returned by the call and does not affect the global registry or any other model handle.
+
+<Warning>
+  Registering a model with capabilities it does not actually support will result in API errors from Anthropic at runtime. Always verify the model's actual capabilities in the Anthropic documentation before declaring them here.
+</Warning>
+
+## Available Capabilities
+
+The `Capability` enum covers all features the SDK can gate or route on:
+
+| Capability | Description |
+|---|---|
+| `Capability::TextGeneration` | The model can produce text completions |
+| `Capability::Streaming` | The model supports streaming responses |
+| `Capability::ToolCalling` | The model supports function / tool calls |
+| `Capability::StructuredOutput` | The model can return structured JSON output |
+| `Capability::Reasoning` | The model supports extended thinking / reasoning |
+| `Capability::TextInput` | The model accepts plain text in the prompt |
+| `Capability::ImageInput` | The model accepts image content in the prompt |
+| `Capability::FileInput` | The model accepts file/document content in the prompt |

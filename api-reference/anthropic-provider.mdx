@@ -1,0 +1,66 @@
+---
+title: "AnthropicProvider Class Reference"
+sidebarTitle: "AnthropicProvider"
+description: "API reference for AnthropicProvider: the concrete provider instance that creates Anthropic text model handles and exposes the provider name."
+---
+
+`AnthropicProvider` is a final class that implements `BaseProvider`. It holds an `AnthropicOptions` configuration object and creates `AnthropicTextModel` instances on demand. You typically interact with it via the [`Anthropic`](/api-reference/anthropic) facade rather than directly — but constructing a provider manually is useful when you need multiple configured providers in the same process, or when wiring up a dependency injection container.
+
+---
+
+### Constructor
+
+```php
+__construct(AnthropicOptions $options)
+```
+
+Creates a new provider bound to the supplied options object. All subsequent model handles created by this provider will share the same configuration.
+
+<ParamField body="options" type="AnthropicOptions" required>
+  The fully constructed configuration object. Use [`AnthropicOptions::fromArray()`](/api-reference/anthropic-options#fromarray) to build one from a plain associative array.
+</ParamField>
+
+```php
+use AiSdk\Anthropic\AnthropicOptions;
+use AiSdk\Anthropic\AnthropicProvider;
+
+$provider = new AnthropicProvider(
+    AnthropicOptions::fromArray(['apiKey' => 'sk-ant-...'])
+);
+```
+
+---
+
+### `name()`
+
+```php
+name(): string
+```
+
+Returns the canonical provider name string. Always returns `'anthropic'` (the value of `AnthropicOptions::PROVIDER_NAME`). The provider name is used internally by the model registry and capability resolution logic to scope entries to this provider.
+
+```php
+echo $provider->name(); // 'anthropic'
+```
+
+---
+
+### `textModel()`
+
+```php
+textModel(string $modelId): TextModelInterface
+```
+
+Creates and returns a new `AnthropicTextModel` bound to this provider's options. The returned handle is lightweight — no network request is made at construction time. Call `->generate()` or `->stream()` on the resulting model to send requests to the Anthropic Messages API.
+
+<ParamField body="modelId" type="string" required>
+  A Claude model identifier string. Must match either a model present in the built-in model catalog or one registered via `Anthropic::registerModel()` / the provider's model registry.
+</ParamField>
+
+```php
+$model = $provider->textModel('claude-sonnet-4');
+```
+
+<Tip>
+  When working with the facade, prefer `Anthropic::model('claude-sonnet-4')` over calling `$provider->textModel()` directly. The facade ensures the default provider singleton is used consistently throughout the application.
+</Tip>

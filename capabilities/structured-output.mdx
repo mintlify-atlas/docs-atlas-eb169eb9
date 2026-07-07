@@ -1,0 +1,101 @@
+---
+title: "Structured Output from Claude via Forced Tool Use"
+sidebarTitle: "Structured Output"
+description: "Extract typed JSON objects from Claude responses. The Anthropic provider adapts structured output using a forced tool-use strategy since Claude lacks native JSON schema support."
+---
+
+Anthropic does not natively support a `json_schema` response format the way some other providers do. The PHP AI SDK adapts this capability by injecting a hidden `structured_output` tool into every request that uses `.output()`, then forcing Claude to call it. The tool's input — validated against your schema — is decoded and returned as the structured result.
+
+## Basic Structured Output
+
+Call `.output()` with a `Schema::object()` describing the shape you expect. Access the decoded array via `$result->output` or the JSON string via `$result->text`.
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Generate;
+use AiSdk\Schema;
+
+$result = Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->prompt('Extract the city and country from: Lahore, Pakistan.')
+    ->output(Schema::object(
+        name: 'address',
+        properties: [
+            Schema::string(name: 'city')->required(),
+            Schema::string(name: 'country')->required(),
+        ],
+    ))
+    ->run();
+
+// Decoded PHP array
+$data = $result->output; // ['city' => 'Lahore', 'country' => 'Pakistan']
+
+// JSON string
+echo $result->text; // {"city":"Lahore","country":"Pakistan"}
+```
+
+## How It Works
+
+When `.output()` is present, the request builder:
+
+1. Constructs a hidden tool named `structured_output` whose `input_schema` is derived from your `Schema::object()`.
+2. Appends it to `body['tools']`.
+3. Sets `tool_choice` to `{ "type": "tool", "name": "structured_output" }`, forcing Claude to call exactly that tool.
+
+On response, the parser detects the `tool_use` block with `name === "structured_output"`, JSON-encodes its `input` field, and wraps it in a `TextPart`. This means `$result->text` is the JSON string and `$result->output` is the decoded array.
+
+The injected tool definition looks like this in the request body:
+
+```json
+{
+  "name": "structured_output",
+  "description": "Return the response as structured JSON.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "city":    { "type": "string" },
+      "country": { "type": "string" }
+    },
+    "required": ["city", "country"]
+  }
+}
+```
+
+## Combining with User Tools
+
+When you attach both `.tools()` and `.output()` in the same request, the SDK merges them rather than replacing your tools. User-defined tools appear first, followed by `structured_output`. The `tool_choice` remains forced to `structured_output`.
+
+```php
+$weather = Tool::make('weather', 'Get weather')
+    ->input(Schema::string(name: 'city')->required())
+    ->run(fn (string $city): string => "Sunny in {$city}");
+
+$result = Generate::text('Extract Lahore and keep tools available.')
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->tools($weather)
+    ->output(Schema::object(
+        name: 'address',
+        properties: [Schema::string(name: 'city')->required()],
+    ))
+    ->run();
+```
+
+The `tools` array sent to the API will be `["weather", "structured_output"]` and `tool_choice` will be `{ "type": "tool", "name": "structured_output" }`.
+
+<Warning>
+  Because `tool_choice` is forced to `structured_output`, Claude will not invoke your other tools in the same turn. Use structured output in a dedicated generation step, then perform tool calls in a separate follow-up request if needed.
+</Warning>
+
+## Capability Status
+
+This capability is reported as **Adapted** because the SDK implements it via forced tool use rather than a native API feature.
+
+```php
+use AiSdk\Capability;
+use AiSdk\CapabilitySupportState;
+
+$support = Anthropic::model('claude-sonnet-4')->capability(Capability::StructuredOutput);
+
+$support->state;    // CapabilitySupportState::Adapted
+$support->strategy; // "forced tool use"
+```

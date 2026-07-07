@@ -1,0 +1,115 @@
+---
+title: "Send Images and Documents to Claude in PHP"
+sidebarTitle: "Multimodal"
+description: "Attach images and files to Claude messages using URL references or base64-encoded data. Claude can analyze images and read PDF documents natively."
+---
+
+Anthropic natively supports image and file (document) inputs. The PHP AI SDK maps `Content::image()` and `Content::file()` to Anthropic's `image` and `document` content block types respectively, handling the source format (URL or base64) automatically based on how the content was constructed.
+
+## Image Input
+
+Images can be attached by URL or as raw base64-encoded bytes.
+
+**URL-based image** — pass a public URL string to `Content::image()`. The SDK sends it as an Anthropic `url` source, keeping the request payload small:
+
+```php
+use AiSdk\Content;
+use AiSdk\Generate;
+use AiSdk\Message;
+use AiSdk\Anthropic;
+
+$result = Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->messages([
+        Message::user([
+            Content::text('What is in this image?'),
+            Content::image('https://example.com/photo.png'),
+        ]),
+    ])
+    ->run();
+```
+
+**Base64 image** — pass raw image bytes along with the MIME type. The SDK encodes the content as a `base64` source:
+
+```php
+Content::image('raw-image-bytes', mimeType: 'image/png')
+```
+
+## File / Document Input
+
+PDF and other document types are sent as Anthropic `document` blocks. Pass the base64-encoded file data, the MIME type, an optional filename, and `InputEncoding::Base64` as the encoding hint:
+
+```php
+use AiSdk\Content;
+use AiSdk\InputEncoding;
+use AiSdk\Message;
+
+$result = Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->messages([
+        Message::user([
+            Content::text('Summarise the attached report.'),
+            Content::file(
+                'JVBERi0=',
+                mimeType: 'application/pdf',
+                filename: 'report.pdf',
+                encoding: InputEncoding::Base64,
+            ),
+        ]),
+    ])
+    ->run();
+```
+
+The SDK maps this to an Anthropic `document` block with `source.type = 'base64'`.
+
+## Wire Format
+
+The two Anthropic source shapes the SDK produces are:
+
+**URL source** — used when the content was constructed from a URL string:
+
+```json
+{
+  "type": "image",
+  "source": {
+    "type": "url",
+    "url": "https://example.com/photo.png"
+  }
+}
+```
+
+**Base64 source** — used when raw bytes or encoded data are provided directly:
+
+```json
+{
+  "type": "document",
+  "source": {
+    "type": "base64",
+    "media_type": "application/pdf",
+    "data": "JVBERi0="
+  }
+}
+```
+
+The same source shape applies to both `image` and `document` blocks — only the top-level `type` field differs.
+
+## Unsupported Input Types
+
+Audio input is **not supported** by the Anthropic provider. If you pass `Content::audio()` in a message, the SDK raises a `CapabilityNotSupportedException` before sending any request to the API:
+
+```php
+// This throws CapabilityNotSupportedException immediately.
+Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->messages([
+        Message::user([
+            Content::text('Transcribe this.'),
+            Content::audio('UklGRg==', mimeType: 'audio/wav', encoding: InputEncoding::Base64),
+        ]),
+    ])
+    ->run();
+```
+
+<Tip>
+  Use `Content::image('url')` for public images — it avoids the overhead of base64 encoding and keeps request payloads small. Reserve base64 encoding for images that are not publicly accessible via a URL.
+</Tip>

@@ -1,0 +1,49 @@
+---
+title: "aisdk/anthropic: Official Anthropic Provider for PHP AI SDK"
+sidebarTitle: "Introduction"
+description: "aisdk/anthropic is the official Anthropic (Claude) provider for the PHP AI SDK. Connect Claude to your PHP app with one Composer package."
+---
+
+`aisdk/anthropic` is the official Anthropic provider for the PHP AI SDK. It bridges your PHP application to Anthropic's Claude models through the shared `aisdk/core` abstractions, giving you text generation, streaming, tool calling, structured output, and reasoning — all through a consistent, provider-agnostic API. The package requires PHP 8.3+ and `aisdk/core ^0.2`, and integrates with any PSR-18-compatible HTTP client.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Install the package and make your first Claude API call in under five minutes.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Set API keys, base URLs, version headers, and custom HTTP headers.
+  </Card>
+  <Card title="Capabilities" icon="sparkles" href="/capabilities/text-generation">
+    Explore text generation, streaming, tool calling, and more.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/anthropic">
+    Full reference for every class and method in the Anthropic provider.
+  </Card>
+</CardGroup>
+
+## Supported Capabilities
+
+Every capability listed below is available on all Claude models registered in the package. The support level describes how the provider implements each feature — "Native" means the Anthropic API handles it directly; "Adapted" means the SDK wraps the API to deliver the feature.
+
+| Capability | Support Level |
+|---|---|
+| Text generation | Native |
+| Streaming | Native |
+| Tool calling | Native |
+| Structured output | Adapted (forced tool use) |
+| Reasoning | Native (thinking blocks) |
+| Text input | Native |
+| Image input | Native |
+| File input | Native (documents) |
+
+<Note>
+  Structured output on Anthropic models is delivered by injecting a hidden tool and forcing the model to call it with the exact schema you provide. This is transparent to your application — you call `->output()` exactly as you would with any other provider.
+</Note>
+
+## Requirements
+
+Before installing `aisdk/anthropic`, make sure your environment satisfies the following:
+
+- **PHP** `^8.3`
+- **aisdk/core** `^0.2` (pulled in automatically by Composer)
+- A **PSR-18 HTTP client** registered in your application (e.g. Guzzle, Symfony HTTP Client, or any discovery-compatible adapter)

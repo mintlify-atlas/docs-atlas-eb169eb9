@@ -1,0 +1,113 @@
+---
+title: "AnthropicOptions Configuration Class Reference"
+sidebarTitle: "AnthropicOptions"
+description: "API reference for AnthropicOptions: all constructor parameters, constants, and the fromArray factory for configuring the Anthropic provider."
+---
+
+`AnthropicOptions` is a final, immutable value object holding all configuration for the Anthropic provider. Every public property is declared `readonly`, so the object cannot be mutated after construction. Create one via the [`fromArray()`](#fromarray) static factory — which handles environment variable fallbacks — or directly via the constructor when you have all values at hand.
+
+---
+
+### Constants
+
+<ResponseField name="DEFAULT_BASE_URL" type="string">
+  `'https://api.anthropic.com/v1'` — The default base URL used for all API requests when no override is provided.
+</ResponseField>
+
+<ResponseField name="DEFAULT_VERSION" type="string">
+  `'2023-06-01'` — The default value sent as the `anthropic-version` request header.
+</ResponseField>
+
+<ResponseField name="PROVIDER_NAME" type="string">
+  `'anthropic'` — The canonical provider name string returned by `AnthropicProvider::name()` and used to scope model registry entries.
+</ResponseField>
+
+---
+
+### Constructor Parameters
+
+```php
+__construct(
+    string $apiKey,
+    string $baseUrl = self::DEFAULT_BASE_URL,
+    string $version = self::DEFAULT_VERSION,
+    array  $headers = [],
+    ?Sdk   $sdk = null,
+)
+```
+
+All parameters map directly to `readonly` public properties of the same name.
+
+<ParamField body="apiKey" type="string" required>
+  Your Anthropic API key. Sent as the `x-api-key` HTTP header on every request. Must be a non-empty string — the SDK throws if it is missing and the `ANTHROPIC_API_KEY` environment variable is also absent.
+</ParamField>
+
+<ParamField body="baseUrl" type="string" default="https://api.anthropic.com/v1">
+  Base URL for API requests. Any trailing slash is stripped automatically by `fromArray()`. Override this when pointing at a proxy, a local mock server, or a compatible third-party endpoint.
+</ParamField>
+
+<ParamField body="version" type="string" default="2023-06-01">
+  Anthropic API version string. Sent as the `anthropic-version` header on every request. Change this only if Anthropic instructs you to use a different version.
+</ParamField>
+
+<ParamField body="headers" type="array" default="[]">
+  Additional HTTP headers merged into every request after the authentication headers. Useful for Anthropic beta feature flags such as `'anthropic-beta' => 'extended-thinking-2025-05-14'`. Custom headers are merged last, so they can override the default auth headers if keys collide.
+</ParamField>
+
+<ParamField body="sdk" type="Sdk|null" default="null">
+  Optional `Sdk` instance wrapping a PSR-18 HTTP client, PSR-17 request factory, and PSR-17 stream factory. Inject a custom `Sdk` to control transport behaviour — for example to supply a mock HTTP client in tests or to configure timeouts and middleware.
+</ParamField>
+
+---
+
+### `fromArray()`
+
+```php
+static fromArray(array $config = []): self
+```
+
+The recommended way to construct an `AnthropicOptions` instance. Reads `apiKey`, `baseUrl`, `version`, `headers`, and `sdk` from the supplied array, falling back to environment variables for the first three when the corresponding key is absent or `null`.
+
+| Array key | Environment variable fallback | Default value |
+|-----------|------------------------------|---------------|
+| `apiKey`  | `ANTHROPIC_API_KEY`          | *(required)*  |
+| `baseUrl` | `ANTHROPIC_BASE_URL`         | `https://api.anthropic.com/v1` |
+| `version` | `ANTHROPIC_VERSION`          | `2023-06-01`  |
+| `headers` | —                            | `[]`          |
+| `sdk`     | —                            | `null`        |
+
+```php
+$options = AnthropicOptions::fromArray([
+    'apiKey'  => 'sk-ant-...',
+    'baseUrl' => 'https://api.anthropic.com/v1',
+    'version' => '2023-06-01',
+    'headers' => ['anthropic-beta' => 'extended-thinking-2025-05-14'],
+]);
+```
+
+<Note>
+  When `apiKey` is omitted from the array **and** `ANTHROPIC_API_KEY` is not set in the environment, `fromArray()` throws an exception. Always ensure at least one of these is present before creating a provider.
+</Note>
+
+---
+
+### `authHeaders()`
+
+```php
+authHeaders(): array<string, string>
+```
+
+Returns the complete set of authentication and version headers to attach to every API request. Merges the fixed authentication headers with any additional headers supplied at construction time. The result is passed directly to the HTTP layer by `AnthropicTextModel`.
+
+```php
+// Equivalent to:
+[
+    'x-api-key'         => $this->apiKey,
+    'anthropic-version' => $this->version,
+    // ...plus any entries from $this->headers
+]
+```
+
+<Tip>
+  You do not need to call `authHeaders()` yourself — `AnthropicTextModel` calls it internally before every `generate()` and `stream()` request. It is exposed as a public method to facilitate testing and custom transport layers.
+</Tip>

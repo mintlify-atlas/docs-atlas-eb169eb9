@@ -1,0 +1,216 @@
+---
+title: "Test PHP Applications Using the Anthropic Provider"
+sidebarTitle: "Testing"
+description: "Inject a fake HTTP client into the PHP AI SDK to unit test Claude integrations without making real API calls."
+---
+
+The `aisdk/core` `Sdk` class accepts a PSR-18 `ClientInterface` for its HTTP transport. By substituting a fake HTTP client at test time, you can run your entire `Generate` pipeline — request building, response parsing, error mapping, and streaming — without ever touching the real Anthropic API. Tests are fast, deterministic, and free.
+
+## Setup
+
+<Steps>
+
+<Step title="Create a FakeHttpClient">
+
+Implement a minimal PSR-18 client that returns a pre-configured response and captures the outgoing request for later inspection.
+
+```php
+use Nyholm\Psr7\Response;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+
+final class FakeHttpClient implements ClientInterface
+{
+    public ?RequestInterface $lastRequest = null;
+
+    public function __construct(
+        private readonly int $status,
+        private readonly string $body,
+        private readonly string $contentType = 'application/json',
+    ) {}
+
+    public function sendRequest(RequestInterface $request): ResponseInterface
+    {
+        $this->lastRequest = $request;
+
+        return new Response($this->status, ['Content-Type' => $this->contentType], $this->body);
+    }
+
+    /** @return array<string, mixed> */
+    public function sentBody(): array
+    {
+        $decoded = json_decode((string) $this->lastRequest?->getBody(), true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+}
+```
+
+</Step>
+
+<Step title="Inject the fake client via Sdk">
+
+Create an `Sdk` instance with your fake client and pass it to `Generate::configure()`. Then initialize the Anthropic provider as usual.
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Generate;
+use AiSdk\Support\Sdk;
+use Nyholm\Psr7\Factory\Psr17Factory;
+
+$factory = new Psr17Factory();
+$sdk = new Sdk(
+    httpClient: $fakeClient,
+    requestFactory: $factory,
+    streamFactory: $factory,
+);
+
+Generate::configure($sdk);
+Anthropic::create(['apiKey' => 'sk-ant-test']);
+```
+
+</Step>
+
+</Steps>
+
+## Inspecting the Outgoing Request
+
+After a `Generate` call completes, the fake client exposes everything that was sent to Anthropic. Use this to assert that your application built the request correctly.
+
+```php
+// Inspect what was sent
+$body    = $fakeClient->sentBody();          // decoded JSON array
+$request = $fakeClient->lastRequest;         // PSR-7 RequestInterface
+
+$request->getHeaderLine('x-api-key');        // 'sk-ant-test'
+$request->getHeaderLine('anthropic-version'); // '2023-06-01'
+
+$body['model'];               // e.g. 'claude-sonnet-4'
+$body['messages'][0]['role']; // 'user'
+$body['stream'];              // false (non-streaming) or true (streaming)
+```
+
+## Simulating Responses
+
+### Successful text response
+
+Return a well-formed Anthropic Messages API response body to exercise the happy path.
+
+```php
+$fakeClient = new FakeHttpClient(200, json_encode([
+    'id'          => 'msg_1',
+    'content'     => [['type' => 'text', 'text' => 'Hello from Anthropic']],
+    'stop_reason' => 'end_turn',
+    'usage'       => ['input_tokens' => 9, 'output_tokens' => 4],
+]));
+```
+
+A full test using Pest looks like this:
+
+```php
+it('generates text end to end through the Anthropic provider', function () {
+    $client = new FakeHttpClient(200, json_encode([
+        'id'          => 'msg_1',
+        'content'     => [['type' => 'text', 'text' => 'Hello from Anthropic']],
+        'stop_reason' => 'end_turn',
+        'usage'       => ['input_tokens' => 9, 'output_tokens' => 4],
+    ]));
+
+    $factory = new \Nyholm\Psr7\Factory\Psr17Factory();
+    Generate::configure(new Sdk(
+        httpClient: $client,
+        requestFactory: $factory,
+        streamFactory: $factory,
+    ));
+    Anthropic::create(['apiKey' => 'sk-ant-test']);
+
+    $result = Generate::text('Hi')
+        ->model(Anthropic::model('claude-sonnet-4'))
+        ->run();
+
+    expect($result->text)->toBe('Hello from Anthropic')
+        ->and($result->usage->inputTokens)->toBe(9);
+});
+```
+
+### Simulating errors
+
+Return a non-2xx status code to verify that your application handles Anthropic error responses correctly. A `401` response is automatically mapped to `AiSdk\Exceptions\AuthenticationException`.
+
+```php
+$fakeClient = new FakeHttpClient(401, json_encode([
+    'error' => ['message' => 'bad key'],
+]));
+// Expect: AiSdk\Exceptions\AuthenticationException
+```
+
+In Pest:
+
+```php
+it('maps a 401 to an authentication exception', function () {
+    $client = new FakeHttpClient(401, json_encode(['error' => ['message' => 'bad key']]));
+
+    $factory = new \Nyholm\Psr7\Factory\Psr17Factory();
+    Generate::configure(new Sdk(
+        httpClient: $client,
+        requestFactory: $factory,
+        streamFactory: $factory,
+    ));
+    Anthropic::create(['apiKey' => 'sk-ant-bad']);
+
+    Generate::text('Hi')->model(Anthropic::model('claude-sonnet-4'))->run();
+})->throws(\AiSdk\Exceptions\AuthenticationException::class);
+```
+
+### Simulating streaming
+
+Pass a `text/event-stream` content type and a raw SSE body to test streaming behaviour. The body must follow the Anthropic SSE event format.
+
+```php
+$fakeClient = new FakeHttpClient(200, implode("\n\n", [
+    'event: message_start' . "\n" . 'data: {"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":3,"output_tokens":0}}}',
+    'event: content_block_delta' . "\n" . 'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}',
+    'event: message_delta' . "\n" . 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}',
+    'event: message_stop' . "\n" . 'data: {"type":"message_stop"}',
+]) . "\n\n", 'text/event-stream');
+```
+
+Consume the stream via `->stream()->chunks()`:
+
+```php
+$stream = Generate::text('Hi')
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->stream();
+
+$text = implode('', iterator_to_array($stream->chunks()));
+expect($text)->toBe('Hello');
+
+// Confirm the SDK sent stream: true
+expect($fakeClient->sentBody()['stream'])->toBeTrue();
+```
+
+## Cleanup Between Tests
+
+`Generate` and `Anthropic` are singletons. Call `::reset()` on both after every test to prevent the fake client and provider configuration from leaking into subsequent tests.
+
+```php
+afterEach(function () {
+    Generate::reset();
+    Anthropic::reset();
+});
+```
+
+In PHPUnit, do the same inside `tearDown`:
+
+```php
+protected function tearDown(): void
+{
+    Generate::reset();
+    Anthropic::reset();
+}
+```
+
+<Tip>
+Always call `Generate::reset()` and `Anthropic::reset()` in `afterEach` (Pest) or `tearDown` (PHPUnit). Without this, a fake client registered in one test will still be active in the next, causing misleading failures that are hard to trace.
+</Tip>

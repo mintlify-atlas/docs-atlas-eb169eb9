@@ -1,0 +1,91 @@
+---
+title: "Extended Reasoning with Claude Thinking Blocks"
+sidebarTitle: "Reasoning"
+description: "Enable Claude's extended thinking mode by attaching a reasoning budget to your request. The provider maps effort levels to Anthropic's thinking token budget automatically."
+---
+
+Claude supports extended thinking via `thinking` content blocks. When reasoning is enabled, Claude performs additional internal reasoning before producing its final response. The PHP AI SDK exposes this through `Reasoning::effort()`, which the Anthropic provider converts to a `budget_tokens` value and sends in the `thinking` field of the request body.
+
+## Basic Usage
+
+Attach `Reasoning::effort()` to a generation request. The effort level controls how many tokens Claude is allowed to spend on its internal reasoning chain.
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Generate;
+use AiSdk\Reasoning;
+
+$result = Generate::text('Solve: what is 2+2?')
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->reasoning(Reasoning::effort('high'))
+    ->run();
+```
+
+Accepted effort values are `'low'`, `'medium'`, and `'high'`. Each maps to a percentage band of the model's configured `max_tokens`.
+
+## Budget Calculation
+
+`AnthropicReasoningBudget` calculates the token budget from the effort level and the request's `max_tokens` value:
+
+<ParamField body="Minimum budget" type="int" default="1024">
+  The smallest token budget the Anthropic API accepts. Calculated budgets below this floor are clamped to `1024`.
+</ParamField>
+
+<ParamField body="Default percentage" type="float" default="0.30">
+  When no effort-specific percentage applies, the budget defaults to 30 % of `max_tokens`.
+</ParamField>
+
+<ParamField body="Upper bound" type="constraint">
+  The calculated budget must be strictly less than `max_tokens`. The Anthropic API rejects requests where `budget_tokens >= max_tokens`.
+</ParamField>
+
+The `thinking` field sent to the API looks like this:
+
+```json
+{
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 8000
+  }
+}
+```
+
+## Response
+
+When thinking is enabled, the API may return one or more `thinking` content blocks alongside the usual `text` blocks. The response parser maps them as follows:
+
+| Anthropic block type | SDK response part |
+|---|---|
+| `text` | `TextPart` |
+| `thinking` | `ReasoningPart` |
+
+Both part types are available in `$result->parts`. You can inspect reasoning content separately from the main text:
+
+```php
+use AiSdk\Responses\Parts\ReasoningPart;
+use AiSdk\Responses\Parts\TextPart;
+
+foreach ($result->parts as $part) {
+    if ($part instanceof ReasoningPart) {
+        echo "Thinking: " . $part->text . PHP_EOL;
+    }
+    if ($part instanceof TextPart) {
+        echo "Answer: " . $part->text . PHP_EOL;
+    }
+}
+```
+
+## Beta Header
+
+Some Claude models require the `anthropic-beta: extended-thinking-2025-05-14` header to enable thinking blocks. Pass it via the `headers` option when creating the provider:
+
+```php
+$provider = Anthropic::create([
+    'apiKey'  => 'sk-ant-...',
+    'headers' => ['anthropic-beta' => 'extended-thinking-2025-05-14'],
+]);
+```
+
+<Note>
+  Reasoning requires a Claude model that supports it (e.g., `claude-sonnet-4`, `claude-opus-4`, `claude-3-7-sonnet`). Check `$model->supports(Capability::Reasoning)` before enabling it to avoid sending unsupported requests.
+</Note>

@@ -1,0 +1,73 @@
+---
+title: "Configure the Anthropic Provider for PHP AI SDK"
+sidebarTitle: "Configuration"
+description: "Set API keys, base URL, version headers, and custom HTTP headers for the aisdk/anthropic provider via environment variables or programmatic config."
+---
+
+`aisdk/anthropic` supports two configuration approaches that can be combined freely. The simplest is environment variables: export one or more of the variables listed below and the provider picks them up automatically when `Anthropic::model()` is first called. For finer-grained control — or when you need multiple provider instances with different credentials — use `Anthropic::create()` to pass a configuration array programmatically.
+
+## Environment Variables
+
+Environment variables are the recommended approach for production deployments because they keep credentials out of source code. Each variable has a corresponding programmatic option; if both are set, the programmatic value takes precedence.
+
+| Variable | Description | Default |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | API key used for authentication via the `x-api-key` header | Required |
+| `ANTHROPIC_BASE_URL` | Base URL for all API requests | `https://api.anthropic.com/v1` |
+| `ANTHROPIC_VERSION` | Value sent as the `anthropic-version` request header | `2023-06-01` |
+
+## Programmatic Configuration
+
+Call `Anthropic::create()` with an options array to configure the provider in code. This also sets the provider as the package-wide default, so subsequent calls to `Anthropic::model()` use the instance you created.
+
+```php
+$provider = Anthropic::create([
+    'apiKey'  => 'sk-ant-...',
+    'baseUrl' => 'https://api.anthropic.com/v1',
+    'version' => '2023-06-01',
+    'headers' => ['anthropic-beta' => 'extended-thinking-2025-05-14'],
+]);
+```
+
+<Note>
+  The `apiKey` field is required unless `ANTHROPIC_API_KEY` is set in the environment.
+</Note>
+
+## Configuration Options
+
+<ParamField body="apiKey" type="string" required>
+  Your Anthropic API key. Sent as the `x-api-key` header on every request. Falls back to the `ANTHROPIC_API_KEY` environment variable when omitted.
+</ParamField>
+
+<ParamField body="baseUrl" type="string">
+  Base URL for all API requests. Trailing slashes are stripped automatically. Defaults to `https://api.anthropic.com/v1`. Falls back to the `ANTHROPIC_BASE_URL` environment variable.
+</ParamField>
+
+<ParamField body="version" type="string">
+  Anthropic API version string sent as the `anthropic-version` header. Defaults to `2023-06-01`. Falls back to the `ANTHROPIC_VERSION` environment variable.
+</ParamField>
+
+<ParamField body="headers" type="array">
+  An associative array of additional HTTP headers merged into every request. Use this to pass beta feature flags such as `anthropic-beta`, or any other custom header the API accepts. Defaults to an empty array.
+</ParamField>
+
+<ParamField body="sdk" type="Sdk|null">
+  A custom `Sdk` instance that wraps a PSR-18 HTTP client, a PSR-17 request factory, and a PSR-17 stream factory. Useful for injecting a test double or a pre-configured HTTP client in your application. Defaults to `null`, which causes the provider to use auto-discovery.
+</ParamField>
+
+## Beta Features
+
+Anthropic exposes preview APIs through the `anthropic-beta` header. Pass it in the `headers` option to opt in to any beta without waiting for a new package release.
+
+```php
+$provider = Anthropic::create([
+    'apiKey'  => 'sk-ant-...',
+    'headers' => [
+        'anthropic-beta' => 'extended-thinking-2025-05-14',
+    ],
+]);
+```
+
+<Tip>
+  You can register a new Claude model — one not yet listed in the package's model catalog — alongside a beta header so both reach the API together. See the Custom Model Registration section of the README for details.
+</Tip>

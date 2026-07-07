@@ -1,0 +1,80 @@
+---
+title: "Pass Raw Provider Options to the Anthropic API"
+sidebarTitle: "Provider Options"
+description: "Use providerOptions to pass arbitrary Anthropic API parameters not exposed by the PHP AI SDK core, such as top_k, stop_sequences, or beta feature flags."
+---
+
+The `providerOptions` method provides an escape hatch for Anthropic API parameters that the PHP AI SDK does not explicitly model. Any key placed inside the `raw` array is merged directly into the final request body sent to the Anthropic API using `array_replace`, giving you access to the full surface of the Anthropic Messages API without waiting for first-class SDK support.
+
+## Basic Usage
+
+Pass a `raw` array under the `'anthropic'` provider key. Every entry inside `raw` is shallow-merged into the request body immediately before the HTTP request is dispatched.
+
+```php
+$result = Generate::text('Hello')
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->providerOptions('anthropic', [
+        'raw' => ['top_k' => 40],
+    ])
+    ->run();
+```
+
+## Supported Raw Parameters
+
+The following are examples of Anthropic API parameters you can forward through `raw`. Any field accepted by the [Anthropic Messages API](https://docs.anthropic.com/en/api/messages) can be used here.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `top_k` | `int` | Sample from the top K options for each subsequent token. Reduces randomness at lower values. |
+| `stop_sequences` | `array` | An array of custom strings that will halt generation when encountered. |
+| `metadata` | `array` | An object describing the end user making the request, used by Anthropic for abuse prevention. Pass `metadata.user_id` to identify individual users. |
+
+```php
+$result = Generate::text('Summarize this article.')
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->providerOptions('anthropic', [
+        'raw' => [
+            'top_k'          => 50,
+            'stop_sequences' => ['END', '###'],
+            'metadata'       => ['user_id' => 'user_abc123'],
+        ],
+    ])
+    ->run();
+```
+
+## Override Behavior
+
+Because `array_replace` is used, keys present in `raw` **overwrite** any field that was already set in the request body by the SDK. This applies to every field, including `model`, `temperature`, `max_tokens`, `messages`, and `stream`.
+
+```php
+// The SDK sets max_tokens from ->maxTokens(). This raw key overwrites it.
+$result = Generate::text('Hello')
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->maxTokens(1024)
+    ->providerOptions('anthropic', [
+        'raw' => ['max_tokens' => 256], // overwrites 1024
+    ])
+    ->run();
+```
+
+<Warning>
+Raw overrides bypass all SDK validation. Passing conflicting keys — for example overriding `messages` with a malformed structure — can produce unexpected behavior or cause the Anthropic API to return an error. Use `raw` only for additive parameters or well-understood overrides.
+</Warning>
+
+## Relationship to Headers
+
+`raw` and `headers` serve different purposes and operate at different layers of the request:
+
+- **`raw`** — merges keys into the **request body** (JSON payload). Use it for API parameters such as `top_k`, `stop_sequences`, and `metadata`.
+- **`headers`** — adds or overrides **HTTP request headers**. Configure these in `Anthropic::create()`.
+
+For Anthropic beta features that require a special request header — such as extended thinking (`anthropic-beta: extended-thinking-2025-05-14`) — use the `headers` config option, not `raw`:
+
+```php
+Anthropic::create([
+    'apiKey'  => 'sk-ant-...',
+    'headers' => ['anthropic-beta' => 'extended-thinking-2025-05-14'],
+]);
+```
+
+Passing a beta feature flag through `raw` will place it in the request body, where Anthropic ignores it.

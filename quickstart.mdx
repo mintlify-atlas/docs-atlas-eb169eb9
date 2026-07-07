@@ -1,47 +1,79 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with the PHP AI SDK Anthropic Provider"
+sidebarTitle: "Quickstart"
+description: "Install aisdk/anthropic, set your API key, and make your first Claude API call in under five minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+This guide walks you through installing the `aisdk/anthropic` package, authenticating with your Anthropic API key, and running a basic text generation request against a Claude model. By the end you will have a working PHP script that calls the Anthropic API and prints the model's response.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
 
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+<Step title="Install via Composer">
+Add `aisdk/anthropic` to your project using Composer. The `aisdk/core` package is pulled in automatically as a dependency.
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+```bash
+composer require aisdk/anthropic
+```
+</Step>
 
-    ```bash
-    your-cli start
-    ```
-  </Step>
+<Step title="Set your API key">
+Export your Anthropic API key as an environment variable. The provider reads `ANTHROPIC_API_KEY` automatically — no extra bootstrap code needed.
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+You can also set the key in a `.env` file and load it with your framework's environment helper, or pass it directly via `Anthropic::create()` (see [Configuration](/configuration)).
+</Step>
+
+<Step title="Generate your first response">
+Use `Generate::text()` to build a request, attach a Claude model with `Anthropic::model()`, add an instruction and a prompt, then call `->run()` to execute.
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Generate;
+
+$result = Generate::text()
+    ->model(Anthropic::model('claude-sonnet-4'))
+    ->instructions('Write short, clear answers.')
+    ->prompt('Explain closures in PHP.')
+    ->run();
+
+echo $result->text;
+```
+
+`$result->text` contains the plain-text response from Claude. The `->instructions()` call maps to Anthropic's top-level `system` field.
+</Step>
+
+<Step title="Set a default model">
+If every request in your application targets the same model, register it once with `Generate::model()`. Subsequent calls to `Generate::text()` will use it automatically without repeating `->model()`.
+
+```php
+Generate::model(Anthropic::model('claude-sonnet-4'));
+
+$result = Generate::text('Explain closures in PHP.')->run();
+```
+
+This is particularly useful in service providers or bootstrap files where you configure the SDK once at startup.
+</Step>
+
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Next Steps
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+Now that you have a working request, explore the rest of what `aisdk/anthropic` supports.
+
+<CardGroup cols={2}>
+  <Card title="Streaming" icon="wave-sine" href="/capabilities/streaming">
+    Stream Claude's response token-by-token for real-time output in your UI.
+  </Card>
+  <Card title="Tool Calling" icon="wrench" href="/capabilities/tool-calling">
+    Give Claude access to your PHP functions and let it call them automatically.
+  </Card>
+  <Card title="Structured Output" icon="brackets-curly" href="/capabilities/structured-output">
+    Receive validated JSON objects matching a schema you define.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Customise the base URL, version header, and additional HTTP headers.
+  </Card>
+</CardGroup>

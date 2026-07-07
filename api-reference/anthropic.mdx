@@ -1,0 +1,152 @@
+---
+title: "Anthropic Facade Class Reference"
+sidebarTitle: "Anthropic"
+description: "API reference for the Anthropic facade class: create providers, look up models, register custom models, and manage the default provider singleton."
+---
+
+`Anthropic` is the primary entry point for the `aisdk/anthropic` package. It is a final static facade that manages the default `AnthropicProvider` singleton and exposes factory methods for models and configuration. Most applications only need this class — calling `Anthropic::create()` once at boot time is enough to make every subsequent `Anthropic::model()` call resolve automatically against the configured provider.
+
+---
+
+### `Anthropic::create()`
+
+```php
+Anthropic::create(array $config = []): AnthropicProvider
+```
+
+Creates a new `AnthropicProvider`, registers it as the default provider singleton, and returns it. Any previously stored default is replaced. Accepts an optional configuration array whose recognized keys are documented in [AnthropicOptions](/api-reference/anthropic-options).
+
+<ParamField body="config" type="array" default="[]">
+  Optional configuration array. Supported keys:
+
+  <ParamField body="apiKey" type="string">
+    Your Anthropic API key. Falls back to the `ANTHROPIC_API_KEY` environment variable when omitted.
+  </ParamField>
+
+  <ParamField body="baseUrl" type="string">
+    Base URL for API requests. Defaults to `https://api.anthropic.com/v1`. Trailing slashes are stripped automatically.
+  </ParamField>
+
+  <ParamField body="version" type="string">
+    Anthropic API version string sent as the `anthropic-version` header. Defaults to `2023-06-01`.
+  </ParamField>
+
+  <ParamField body="headers" type="array">
+    Additional HTTP headers merged into every request — useful for Anthropic beta feature flags.
+  </ParamField>
+
+  <ParamField body="sdk" type="Sdk|null">
+    Optional custom `Sdk` instance to inject a PSR-18 HTTP client. Defaults to `null`.
+  </ParamField>
+</ParamField>
+
+```php
+$provider = Anthropic::create([
+    'apiKey'  => 'sk-ant-...',
+    'version' => '2023-06-01',
+]);
+```
+
+---
+
+### `Anthropic::model()`
+
+```php
+Anthropic::model(string $modelId): TextModelInterface
+```
+
+Returns a `TextModelInterface` instance for the given model ID using the default provider. Internally calls `Anthropic::default()` to retrieve (or lazily create) the provider, then delegates to `->textModel($modelId)` on it.
+
+<ParamField body="modelId" type="string" required>
+  The Claude model identifier to create a handle for (e.g., `'claude-sonnet-4'`). The handle is lightweight — no network call is made until `generate()` or `stream()` is invoked.
+</ParamField>
+
+```php
+$model = Anthropic::model('claude-sonnet-4');
+```
+
+<Tip>
+  If no provider has been created yet, `Anthropic::model()` will call `Anthropic::create()` with no arguments, which requires the `ANTHROPIC_API_KEY` environment variable to be set.
+</Tip>
+
+---
+
+### `Anthropic::default()`
+
+```php
+Anthropic::default(): AnthropicProvider
+```
+
+Returns the current default `AnthropicProvider`. If no provider has been set yet, this method calls `Anthropic::create()` with no arguments, relying on `ANTHROPIC_API_KEY` being present in the environment. The result is stored so subsequent calls return the same instance.
+
+```php
+$provider = Anthropic::default();
+```
+
+<Note>
+  Call `Anthropic::create([...])` explicitly during application boot if you need to supply a specific API key or other configuration, rather than depending on the lazy-creation behaviour of `default()`.
+</Note>
+
+---
+
+### `Anthropic::reset()`
+
+```php
+Anthropic::reset(): void
+```
+
+Clears the default provider singleton, setting the internal reference back to `null`. The next call to `Anthropic::default()` or `Anthropic::model()` will create a fresh provider. This method is primarily used in test suites to avoid state leaking between test cases.
+
+```php
+Anthropic::reset();
+```
+
+<Warning>
+  Calling `reset()` in production code discards the configured provider. Any code that holds a reference obtained before the reset will continue using the old provider, while subsequent calls to the facade will create a new one.
+</Warning>
+
+---
+
+### `Anthropic::registerModel()`
+
+```php
+Anthropic::registerModel(string|ModelDefinition $model, array $capabilities = []): void
+```
+
+Registers a custom model in the default provider's model registry. Use this to declare Claude-compatible models not yet present in the built-in model catalog, associating them with a set of `Capability` enum values. Accepts either a terse string-plus-capabilities form or a full `ModelDefinition` object.
+
+<ParamField body="model" type="string|ModelDefinition" required>
+  Either a model ID string (e.g., `'claude-5-sonnet'`) or a `ModelDefinition` instance. When a string is provided, the capabilities array must be supplied separately.
+</ParamField>
+
+<ParamField body="capabilities" type="array" default="[]">
+  Array of `Capability` enum values. Only used when `$model` is a string. Ignored when a `ModelDefinition` is passed (the definition carries its own capability list).
+</ParamField>
+
+**Terse string form:**
+
+```php
+use AiSdk\Capability;
+
+Anthropic::registerModel('claude-5-sonnet', capabilities: [
+    Capability::TextGeneration,
+    Capability::Streaming,
+    Capability::ToolCalling,
+]);
+```
+
+**`ModelDefinition` form:**
+
+```php
+use AiSdk\Capability;
+use AiSdk\ModelDefinition;
+
+Anthropic::registerModel(new ModelDefinition(
+    id: 'claude-custom',
+    capabilities: [Capability::TextGeneration, Capability::Streaming],
+));
+```
+
+<Note>
+  `registerModel()` operates on the **current default provider**. Call `Anthropic::create()` before `registerModel()` if you need the custom model bound to a specific provider configuration.
+</Note>

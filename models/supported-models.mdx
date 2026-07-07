@@ -1,0 +1,68 @@
+---
+title: "Supported Claude Models in the PHP AI SDK"
+sidebarTitle: "Supported Models"
+description: "All Claude models bundled with aisdk/anthropic, their capability matrix, and how to reference them by model ID in your application."
+---
+
+The `aisdk/anthropic` package ships with a built-in model catalog stored at `resources/models.json`. Each entry declares the model's status and the capabilities it supports. When you call `Anthropic::model('model-id')`, the package looks up the ID in this catalog and returns a model handle that knows exactly which capabilities are available — so capability checks, structured output routing, and reasoning all work without any additional configuration.
+
+## Model Catalog
+
+<Note>
+  Wildcard entries (those ending in `*`) match any model ID that starts with the given prefix. For example, `claude-3*` matches `claude-3-5-sonnet-20241022` or any other Claude 3 variant not listed explicitly.
+</Note>
+
+| Model ID | Status | Capabilities |
+|---|---|---|
+| `claude-sonnet-4` | Stable | TextGeneration, Streaming, ToolCalling, StructuredOutput (adapted), Reasoning, TextInput, ImageInput, FileInput |
+| `claude-opus-4*` | Stable | TextGeneration, Streaming, ToolCalling, StructuredOutput (adapted), Reasoning, TextInput, ImageInput, FileInput |
+| `claude-3-7-sonnet*` | Stable | TextGeneration, Streaming, ToolCalling, StructuredOutput (adapted), Reasoning, TextInput, ImageInput, FileInput |
+| `claude-3.7-sonnet*` | Stable | TextGeneration, Streaming, ToolCalling, StructuredOutput (adapted), Reasoning, TextInput, ImageInput, FileInput |
+| `claude-3-5-haiku-latest` | Stable | TextGeneration, Streaming, ToolCalling, StructuredOutput (adapted), TextInput |
+| `claude-3*` | Stable | TextGeneration, Streaming, ToolCalling, StructuredOutput (adapted), TextInput, ImageInput, FileInput |
+
+**StructuredOutput (adapted)** means Anthropic does not expose a native JSON schema response format. The SDK adapts structured output by routing it through forced tool use internally.
+
+## Referencing a Model
+
+Pass any catalog model ID to `Anthropic::model()` to get a ready-to-use model handle. The handle is a `TextModelInterface` instance you can pass directly to any `Generate` call.
+
+```php
+use AiSdk\Anthropic;
+
+$model = Anthropic::model('claude-sonnet-4');
+```
+
+## Checking Capabilities
+
+Every model handle exposes `supports()` for a boolean check and `capability()` for the full `CapabilitySupport` object, which includes the support state and — for adapted capabilities — the strategy description.
+
+```php
+use AiSdk\Capability;
+
+$model = Anthropic::model('claude-sonnet-4');
+
+if ($model->supports(Capability::Reasoning)) {
+    // enable thinking
+}
+
+$support = $model->capability(Capability::StructuredOutput);
+echo $support->state->name;    // 'Adapted'
+echo $support->strategy;       // 'Structured output is adapted through forced tool use.'
+```
+
+## Unknown Models
+
+If you pass a model ID that is not in the catalog and has not been registered, the package applies a safe fallback: `supports(Capability::TextGeneration)` returns `true` so the call can proceed, while all other capability checks return `false`. The `source` field on the returned `CapabilitySupport` object is set to `'unknown-model-fallback'`.
+
+This fallback exists so you can use a newly released Claude model ID before a package update ships the catalog entry. Any capability beyond basic text generation will gate on an actual API call, and Anthropic will return an error if the model does not support it.
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Capability;
+
+$model = Anthropic::model('claude-new-unreleased');
+
+$model->supports(Capability::TextGeneration);  // true  (unknown-model-fallback)
+$model->supports(Capability::Reasoning);       // false
+```

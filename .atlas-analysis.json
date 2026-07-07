@@ -1,0 +1,89 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "PHP AI SDK — Anthropic Provider",
+  "projectDescription": "Official Anthropic (Claude) provider for the PHP AI SDK, enabling text generation, streaming, tool calling, structured output, reasoning, and multimodal inputs.",
+  "theme": "luma",
+  "primaryColor": "#D97757",
+  "lightColor": "#F5E6D3",
+  "darkColor": "#7B2D00",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Capabilities",
+            "pages": [
+              "capabilities/text-generation",
+              "capabilities/streaming",
+              "capabilities/tool-calling",
+              "capabilities/structured-output",
+              "capabilities/reasoning",
+              "capabilities/multimodal"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "models/supported-models",
+              "models/custom-models"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/provider-options",
+              "advanced/testing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Classes",
+            "pages": [
+              "api-reference/anthropic",
+              "api-reference/anthropic-provider",
+              "api-reference/anthropic-options"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Native text generation via the Anthropic Messages API",
+    "Server-sent event streaming with per-chunk yields",
+    "Tool calling with automatic Anthropic tool-use format conversion",
+    "Structured output via forced tool use (JSON schema)",
+    "Extended reasoning / thinking blocks with configurable token budget",
+    "Multimodal inputs: text, images (URL and base64), and file/document uploads",
+    "Custom model registration without requiring a package release",
+    "Programmatic and environment-variable-based configuration",
+    "Provider-specific raw option pass-through as an escape hatch"
+  ],
+  "publicApiSurface": [
+    "Anthropic::create(array $config): AnthropicProvider",
+    "Anthropic::model(string $modelId): TextModelInterface",
+    "Anthropic::default(): AnthropicProvider",
+    "Anthropic::reset(): void",
+    "Anthropic::registerModel(string|ModelDefinition $model, array $capabilities): void",
+    "AnthropicProvider::textModel(string $modelId): TextModelInterface",
+    "AnthropicOptions::fromArray(array $config): self",
+    "AnthropicOptions::authHeaders(): array",
+    "Generate::text(string $prompt): TextGenerationBuilder",
+    "Generate::model(TextModelInterface $model): void",
+    "Generate::configure(Sdk $sdk): void",
+    "Generate::reset(): void"
+  ]
+}
