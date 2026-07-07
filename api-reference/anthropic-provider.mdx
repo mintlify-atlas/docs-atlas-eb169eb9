@@ -1,20 +1,20 @@
 ---
-title: "AnthropicProvider Class Reference"
+title: "AnthropicProvider: Final Anthropic Provider Class Reference"
 sidebarTitle: "AnthropicProvider"
 description: "API reference for AnthropicProvider: the concrete provider instance that creates Anthropic text model handles and exposes the provider name."
 ---
 
-`AnthropicProvider` is a final class that implements `BaseProvider`. It holds an `AnthropicOptions` configuration object and creates `AnthropicTextModel` instances on demand. You typically interact with it via the [`Anthropic`](/api-reference/anthropic) facade rather than directly — but constructing a provider manually is useful when you need multiple configured providers in the same process, or when wiring up a dependency injection container.
+`AnthropicProvider` is a `final` class that extends `BaseProvider`. It holds an `AnthropicOptions` configuration object as a `public readonly` property and creates `AnthropicTextModel` instances on demand. Because the class is `final` it cannot be subclassed. You typically interact with it via the [`Anthropic`](/api-reference/anthropic) facade rather than directly — but constructing a provider manually is useful when you need multiple configured providers in the same process, or when wiring up a dependency injection container.
 
 ---
 
 ### Constructor
 
 ```php
-__construct(AnthropicOptions $options)
+__construct(public readonly AnthropicOptions $options)
 ```
 
-Creates a new provider bound to the supplied options object. All subsequent model handles created by this provider will share the same configuration.
+Creates a new provider bound to the supplied options object. The `$options` parameter is promoted to a `public readonly` property, so it is accessible as `$provider->options` after construction. All subsequent model handles created by this provider share the same configuration.
 
 <ParamField body="options" type="AnthropicOptions" required>
   The fully constructed configuration object. Use [`AnthropicOptions::fromArray()`](/api-reference/anthropic-options#fromarray) to build one from a plain associative array.

@@ -1,7 +1,7 @@
 ---
-title: "Stream Claude Responses Chunk by Chunk in PHP"
+title: "Streaming Claude Model Responses Chunk by Chunk in PHP"
 sidebarTitle: "Streaming"
-description: "Stream Claude model responses using server-sent events. Iterate over text chunks in real time and access the final result after the stream completes."
+description: "Stream Claude model responses using server-sent events. Iterate over text deltas in real time and access the final result after the stream completes."
 ---
 
 Streaming uses Anthropic's server-sent events (SSE) protocol to deliver the response incrementally as it is generated. The SDK yields `TextDeltaPart`, `ReasoningDeltaPart`, and `ToolCallDeltaPart` chunks as they arrive, so your application can begin rendering output without waiting for the full response to complete.

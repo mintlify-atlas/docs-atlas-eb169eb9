@@ -1,5 +1,5 @@
 ---
-title: "Configure the Anthropic Provider for PHP AI SDK"
+title: "PHP AI SDK Anthropic Provider: Configuration Reference"
 sidebarTitle: "Configuration"
 description: "Set API keys, base URL, version headers, and custom HTTP headers for the aisdk/anthropic provider via environment variables or programmatic config."
 ---
@@ -21,6 +21,8 @@ Environment variables are the recommended approach for production deployments be
 Call `Anthropic::create()` with an options array to configure the provider in code. This also sets the provider as the package-wide default, so subsequent calls to `Anthropic::model()` use the instance you created.
 
 ```php
+use AiSdk\Anthropic;
+
 $provider = Anthropic::create([
     'apiKey'  => 'sk-ant-...',
     'baseUrl' => 'https://api.anthropic.com/v1',
@@ -55,11 +57,42 @@ $provider = Anthropic::create([
   A custom `Sdk` instance that wraps a PSR-18 HTTP client, a PSR-17 request factory, and a PSR-17 stream factory. Useful for injecting a test double or a pre-configured HTTP client in your application. Defaults to `null`, which causes the provider to use auto-discovery.
 </ParamField>
 
+## SDK-Level Helpers
+
+The core SDK exposes two helper methods for managing the default model and provider state at runtime. These are available through `Generate` from `aisdk/core`.
+
+`Generate::configure()` lets you set or replace the default text model for all subsequent `Generate::text()` calls without calling `Generate::model()` on each one:
+
+```php
+use AiSdk\Anthropic;
+use AiSdk\Generate;
+
+Generate::configure(Anthropic::model('claude-sonnet-4'));
+```
+
+`Generate::reset()` clears the default model configured via `Generate::model()` or `Generate::configure()`, returning the `Generate` facade to its unconfigured state. This is useful in tests or when switching providers at runtime:
+
+```php
+use AiSdk\Generate;
+
+Generate::reset();
+```
+
+`Anthropic::reset()` clears the cached default `AnthropicProvider` instance created by `Anthropic::create()`. After calling it, the next call to `Anthropic::model()` will recreate the provider from environment variables:
+
+```php
+use AiSdk\Anthropic;
+
+Anthropic::reset();
+```
+
 ## Beta Features
 
 Anthropic exposes preview APIs through the `anthropic-beta` header. Pass it in the `headers` option to opt in to any beta without waiting for a new package release.
 
 ```php
+use AiSdk\Anthropic;
+
 $provider = Anthropic::create([
     'apiKey'  => 'sk-ant-...',
     'headers' => [

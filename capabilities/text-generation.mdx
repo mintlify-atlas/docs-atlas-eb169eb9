@@ -1,7 +1,7 @@
 ---
-title: "Text Generation with Claude via PHP AI SDK"
+title: "Text Generation with Claude Models in the PHP AI SDK"
 sidebarTitle: "Text Generation"
-description: "Generate text responses from Claude models using system instructions, multi-turn message history, and configurable generation parameters."
+description: "Generate text with Claude models in PHP: pass system instructions, build multi-turn message history, and read token usage from the response."
 ---
 
 `Generate::text()` sends a request to `POST /messages` on the Anthropic Messages API and returns a `TextModelResponse` containing the generated text, token usage, finish reason, and the raw API payload. The provider handles authentication, serialization, and response parsing automatically.

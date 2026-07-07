@@ -1,7 +1,7 @@
 ---
-title: "Tool Calling with Claude in the PHP AI SDK"
+title: "Tool Calling with Claude Models via the PHP AI SDK"
 sidebarTitle: "Tool Calling"
-description: "Define tools with input schemas and let Claude invoke them during generation. The Anthropic provider converts PHP Tool objects to Anthropic's tool-use format automatically."
+description: "Define PHP tools with input schemas and let Claude invoke them. Responses include ToolCallPart with decoded arguments ready for your handler."
 ---
 
 Claude tool calling lets you define callable functions that Claude can choose to invoke during generation. You define a `Tool` with a name, description, and input schema, attach it to a generation request, and Claude responds with a `tool_use` content block when it decides to call the tool. The SDK maps that block to a `ToolCallPart` in the response, which your application can inspect and execute.
@@ -64,13 +64,13 @@ Tool results are returned to Anthropic in the next generation turn as `tool_resu
 
 ## Multiple Tools
 
-Pass multiple tools at once using `->tools()` with a comma-separated list or an array:
+Pass multiple tools at once using `->tools()` with an array:
 
 ```php
 $result = Generate::text()
     ->model(Anthropic::model('claude-sonnet-4'))
     ->prompt('What is the weather in Lahore and what time is it?')
-    ->tools($weatherTool, $timeTool)
+    ->tools([$weatherTool, $timeTool])
     ->run();
 ```
 

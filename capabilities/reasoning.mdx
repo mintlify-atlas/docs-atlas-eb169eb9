@@ -1,7 +1,7 @@
 ---
-title: "Extended Reasoning with Claude Thinking Blocks"
+title: "Extended Reasoning with Claude Thinking Blocks in PHP"
 sidebarTitle: "Reasoning"
-description: "Enable Claude's extended thinking mode by attaching a reasoning budget to your request. The provider maps effort levels to Anthropic's thinking token budget automatically."
+description: "Enable Claude extended thinking in PHP by attaching a reasoning budget. The SDK maps effort levels to a budget_tokens value in the thinking field."
 ---
 
 Claude supports extended thinking via `thinking` content blocks. When reasoning is enabled, Claude performs additional internal reasoning before producing its final response. The PHP AI SDK exposes this through `Reasoning::effort()`, which the Anthropic provider converts to a `budget_tokens` value and sends in the `thinking` field of the request body.

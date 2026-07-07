@@ -13,6 +13,7 @@ The quickest way to register a model is to pass the model ID as a string along w
 ```php
 use AiSdk\Anthropic;
 use AiSdk\Capability;
+use AiSdk\Generate;
 
 Anthropic::registerModel('claude-5-sonnet', capabilities: [
     Capability::TextGeneration,

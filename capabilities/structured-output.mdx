@@ -1,7 +1,7 @@
 ---
-title: "Structured Output from Claude via Forced Tool Use"
+title: "Structured JSON Output from Claude via Forced Tool Use"
 sidebarTitle: "Structured Output"
-description: "Extract typed JSON objects from Claude responses. The Anthropic provider adapts structured output using a forced tool-use strategy since Claude lacks native JSON schema support."
+description: "Extract typed PHP arrays from Claude using the SDK's forced tool-use strategy. Access decoded output or JSON string from the response."
 ---
 
 Anthropic does not natively support a `json_schema` response format the way some other providers do. The PHP AI SDK adapts this capability by injecting a hidden `structured_output` tool into every request that uses `.output()`, then forcing Claude to call it. The tool's input — validated against your schema — is decoded and returned as the structured result.

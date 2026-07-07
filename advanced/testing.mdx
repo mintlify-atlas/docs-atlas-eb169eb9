@@ -1,7 +1,7 @@
 ---
 title: "Test PHP Applications Using the Anthropic Provider"
 sidebarTitle: "Testing"
-description: "Inject a fake HTTP client into the PHP AI SDK to unit test Claude integrations without making real API calls."
+description: "Inject a fake PSR-18 HTTP client into the PHP AI SDK to unit test your Claude integrations without making real Anthropic API calls or incurring costs."
 ---
 
 The `aisdk/core` `Sdk` class accepts a PSR-18 `ClientInterface` for its HTTP transport. By substituting a fake HTTP client at test time, you can run your entire `Generate` pipeline — request building, response parsing, error mapping, and streaming — without ever touching the real Anthropic API. Tests are fast, deterministic, and free.
